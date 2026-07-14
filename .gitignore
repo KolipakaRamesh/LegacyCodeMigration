@@ -1,0 +1,33 @@
+## Ignore Visual Studio / MSBuild / .NET build artifacts
+[Bb]in/
+[Oo]bj/
+[Log]/
+
+## Ignore Visual Studio Cache and settings
+.vs/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+## Ignore VS Code settings and workspace files
+.vscode/
+.history/
+
+## Ignore Rider/Resharper settings
+.idea/
+*.ReSharper.user
+_ReSharper.*/
+
+## Ignore Mac OS metadata
+.DS_Store
+
+## Ignore test results and code coverage
+TestResults/
+*.clog
+*.cobertura.xml
+coverage.cobertura.xml
+
+## Ignore local run output folders (where nodes.json and relationships.json are generated)
+[Oo]utput/
+**/[Oo]utput/

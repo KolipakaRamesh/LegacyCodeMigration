@@ -1,0 +1,232 @@
+# LegacyCodeMigration — Software Knowledge Graph POC
+
+> A .NET 8 proof of concept that transforms a **legacy C# codebase** into a queryable **Software Knowledge Graph** using the Roslyn Compiler Platform — without touching a database, LLM, or any external service.
+
+---
+
+## The Problem It Solves
+
+Legacy codebases are hard to understand. They accumulate years of undocumented dependencies, hidden coupling, inheritance chains, and service interactions that no single developer fully knows. Before you can migrate, refactor, or modernise a legacy system, you need to answer questions like:
+
+- What does `OrderService` actually depend on?
+- Which classes implement `IRepository`?
+- What happens if I change `Customer`?
+- Which services call `DatabaseContext` directly?
+- What is the full inheritance chain of `BaseRepository`?
+
+This POC answers all of those questions automatically — by reading the source code itself.
+
+---
+
+## What It Does
+
+```
+Legacy C# Project  (.cs source files)
+        │
+        ▼
+Roslyn Compiler Platform
+        │   Parses every file into a syntax tree
+        │   Builds an in-memory CSharpCompilation
+        │   Walks every declaration with a CSharpSyntaxWalker
+        │   Extracts: classes · interfaces · enums · methods ·
+        │             properties · fields · constructors ·
+        │             inheritance · implementations · invocations ·
+        │             object creations · DI dependencies
+        ▼
+Project Metadata  (structured DTOs)
+        │
+        ▼
+Knowledge Graph Builder
+        │   Maps every type, member, and relationship to a graph node or edge
+        │   No hardcoded rules — everything is derived from the metadata
+        ▼
+Software Knowledge Graph  (in-memory)
+        │   247 nodes · 404 directed relationships
+        ▼
+JSON Export
+        │   nodes.json          ← every node (class, method, field, etc.)
+        │   relationships.json  ← every directed edge (INHERITS, USES, CALLS, etc.)
+        ▼
+Graph Query Engine  (pure in-memory, no database)
+        │   Find all classes · Find implementations · Trace dependencies ·
+        │   Get dependency chains · Find callers · List methods/properties/fields
+        ▼
+Console Output  (12 sample queries answered)
+```
+
+---
+
+## Where It Is Useful
+
+| Scenario | How This POC Helps |
+|---|---|
+| **Legacy migration** | Understand the full dependency graph before moving any code — know what breaks if you change a class |
+| **Codebase onboarding** | New team members can query the graph instead of reading thousands of lines of code |
+| **Architecture validation** | Detect architectural violations — e.g. a `Service` layer class directly calling another `Service` |
+| **Refactoring planning** | Find all callers of a method, all implementors of an interface, all classes that `USES` a specific repository |
+| **CI/CD enforcement** | Run the graph builder in a pipeline and assert dependency rules (e.g. "no circular USES between services") |
+| **Documentation generation** | `nodes.json` + `relationships.json` can feed any visualisation tool — Gephi, D3.js, Cytoscape, Mermaid |
+| **Future AI/agent tooling** | The graph files provide structured, self-describing context about the codebase without requiring source file access |
+| **Neo4j / graph database import** | The Id-based JSON format maps directly to a property graph — importable with zero transformation |
+
+---
+
+## High-Level Architecture
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                      LegacyProject                          │
+│   22 classes · 5 interfaces · 3 enums · 8 namespaces       │
+│   (enterprise order management domain — the analysis target)│
+└────────────────────────┬────────────────────────────────────┘
+                         │  source files
+                         ▼
+┌─────────────────────────────────────────────────────────────┐
+│                  KnowledgeGraphEngine                        │
+│                                                             │
+│  ┌──────────────────┐    ┌──────────────────────────────┐  │
+│  │  RoslynAnalyzer  │───▶│  ProjectMetadata (DTOs)       │  │
+│  │  SyntaxWalker    │    │  ClassMetadata, MethodMetadata│  │
+│  └──────────────────┘    │  InterfaceMetadata, etc.      │  │
+│                          └──────────────┬───────────────┘  │
+│                                         │                   │
+│                          ┌──────────────▼───────────────┐  │
+│                          │   KnowledgeGraphBuilder       │  │
+│                          │   Metadata → Nodes + Edges    │  │
+│                          └──────────────┬───────────────┘  │
+│                                         │                   │
+│                          ┌──────────────▼───────────────┐  │
+│                          │  SoftwareKnowledgeGraph       │  │
+│                          │  (in-memory: nodes + edges)   │  │
+│                          └──────┬───────────────┬───────┘  │
+│                                 │               │           │
+│                    ┌────────────▼──┐   ┌────────▼────────┐ │
+│                    │ JsonGraphStorage│  │ GraphQueryEngine │ │
+│                    │ nodes.json     │  │ 10 query methods │ │
+│                    │ relationships  │  │ (pure in-memory) │ │
+│                    │ .json          │  └─────────────────┘ │
+│                    └───────────────┘                       │
+└─────────────────────────────────────────────────────────────┘
+                         │
+                         ▼
+┌─────────────────────────────────────────────────────────────┐
+│                      DemoConsole                            │
+│   Orchestrates the full pipeline · Runs 12 graph queries   │
+└─────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## The Legacy Domain (Analysis Target)
+
+The `LegacyProject` is a simulated enterprise **Order Management System** — realistic enough that Roslyn finds meaningful structure: deep inheritance, constructor-injected dependencies, interface contracts, and cross-layer calls.
+
+### Layer Overview
+
+| Layer | Classes | What It Contains |
+|---|---|---|
+| **Base** | `BaseEntity`, `BaseRepository<T>` | Abstract root of all models and repositories |
+| **Models** | `Customer`, `Order`, `OrderItem`, `Product`, `Invoice`, `Payment`, `Address` | Domain entities, all extending `BaseEntity` |
+| **Enums** | `OrderStatus`, `PaymentStatus`, `CustomerType` | Value types used across the domain |
+| **Interfaces** | `IRepository<T>`, `IOrderService`, `ICustomerService`, `IInvoiceService`, `IEmailService` | Contracts for all service and data-access layers |
+| **Repositories** | `CustomerRepository`, `OrderRepository`, `ProductRepository`, `InvoiceRepository` | Extend `BaseRepository<T>`, implement `IRepository<T>` |
+| **Services** | `OrderService`, `CustomerService`, `InvoiceService`, `PaymentService`, `EmailNotificationService` | Business logic, wired via constructor injection |
+| **Infrastructure** | `DatabaseContext` | Mock connection management |
+| **Helpers** | `DateHelper`, `PriceCalculator`, `ValidationHelper` | Static utility classes |
+
+### Why This Domain?
+
+It covers every relationship type the graph can extract:
+
+| Pattern | Example |
+|---|---|
+| Inheritance | `CustomerRepository` → `BaseRepository<Customer>` → `BaseEntity` |
+| Interface implementation | `OrderService` → `IOrderService` |
+| Constructor DI (USES) | `OrderService` takes 5 dependencies via constructor |
+| Method invocations (CALLS) | `OrderService.CreateOrderAsync` calls `CustomerRepository.GetByIdAsync` |
+| Object creation (CREATES) | `OrderService` creates `Order`, `OrderItem` via `new` |
+| Cross-layer reference | `Order.Customer` property references the `Customer` model |
+
+---
+
+## Output Files
+
+Both files are written to `DemoConsole/bin/Debug/net8.0/output/` after every run.
+
+### `nodes.json` — What exists in the codebase
+
+```json
+{
+  "Id":        "class:LegacyProject.Services.OrderService",
+  "Name":      "OrderService",
+  "Type":      "Class",
+  "Namespace": "LegacyProject.Services",
+  "Metadata":  { "IsAbstract": "False", "IsStatic": "False" }
+}
+```
+
+### `relationships.json` — How things are connected
+
+```json
+{
+  "FromNodeId":       "class:LegacyProject.Services.OrderService",
+  "ToNodeId":         "class:LegacyProject.Repositories.CustomerRepository",
+  "RelationshipType": "USES",
+  "Properties":       {}
+}
+```
+
+The two files are linked by `Id` — every `FromNodeId` and `ToNodeId` in `relationships.json` resolves to an `Id` in `nodes.json`. The `Id` prefix (`class:`, `method:`, `interface:`, `namespace:`, …) encodes the node type directly, making the files self-describing.
+
+### Relationship types extracted
+
+`INHERITS` · `IMPLEMENTS` · `USES` · `CALLS` · `CREATES` · `REFERENCES` · `HAS_METHOD` · `HAS_PROPERTY` · `HAS_FIELD` · `HAS_CONSTRUCTOR` · `BELONGS_TO_NAMESPACE` · `BELONGS_TO_PROJECT`
+
+---
+
+## How to Run
+
+```bash
+# From the solution root:
+dotnet run --project DemoConsole/DemoConsole.csproj
+```
+
+No configuration needed. The tool locates `LegacyProject/` automatically.
+
+**Last run results:** 247 nodes · 404 relationships extracted from 30 source files in ~2 seconds.
+
+---
+
+## Extension Points
+
+This POC is intentionally thin at the storage and output layer. The `IGraphStorage` interface means any backend can be added without changing the engine:
+
+- **Neo4j** — implement `Neo4jGraphStorage`, import the same JSON directly
+- **Mermaid / GraphViz** — read `relationships.json`, filter by type, emit diagram syntax
+- **Architecture tests** — load the graph in a test project, assert no forbidden dependency edges
+- **Multi-project** — run `RoslynProjectAnalyzer` over multiple `.csproj` paths, merge into one graph
+- **CI enforcement** — fail the pipeline if a new `Service → Service USES` edge appears
+
+---
+
+## Future Migration Roadmap (TODOs)
+
+We plan to use the generated `nodes.json` and `relationships.json` files to automate, track, and validate future service migrations (such as extracting `CustomerService` into a standalone Web API):
+
+- [ ] **Automated Endpoint Generation**: Develop a tool that parses method declarations in `nodes.json` to automatically scaffold REST controllers (e.g., `CustomerController.cs`) and request/response DTO classes.
+- [ ] **Client Proxy Generation**: Generate client-side API clients (e.g., `CustomerServiceClient`) using the signatures and parameters parsed from the graph.
+- [ ] **Dependency & Impact Analysis**: Write queries to trace incoming dependencies (e.g., finding that `OrderService` uses `ICustomerService`) and outgoing requirements (e.g., `CustomerRepository`, `ValidationHelper`) to map out deployment bundles.
+- [ ] **Migration Progress Tracking**: Create a dashboard or pipeline script that checks the graph after each refactoring step, reporting on the percentage of dependencies successfully decoupled from legacy boundaries.
+- [ ] **CI Architecture Guardrails**: Implement automated gateway tests in CI to scan `relationships.json` and block PRs that introduce circular dependencies or violate layer boundaries (e.g., services calling other services directly).
+
+---
+
+## Tech Stack
+
+| | |
+|---|---|
+| Runtime | .NET 8 |
+| Roslyn | `Microsoft.CodeAnalysis.CSharp` 4.9.2 |
+| Serialization | `System.Text.Json` (built-in) |
+| External services | **None** |
+| AI / LLM / Vector DB | **Not used** |
