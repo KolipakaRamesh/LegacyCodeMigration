@@ -31,3 +31,4 @@ coverage.cobertura.xml
 ## Ignore local run output folders (where nodes.json and relationships.json are generated)
 [Oo]utput/
 **/[Oo]utput/
+WebDashboard/wwwroot/output/

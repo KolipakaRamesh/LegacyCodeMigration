@@ -110,8 +110,8 @@ Console Output  (12 sample queries answered)
                          │
                          ▼
 ┌─────────────────────────────────────────────────────────────┐
-│                      DemoConsole                            │
-│   Orchestrates the full pipeline · Runs 12 graph queries   │
+│                      WebDashboard                           │
+│   Web dashboard UI & Minimal API generator endpoint routes  │
 └─────────────────────────────────────────────────────────────┘
 ```
 
@@ -120,6 +120,9 @@ Console Output  (12 sample queries answered)
 ## The Legacy Domain (Analysis Target)
 
 The `LegacyProject` is a simulated enterprise **Order Management System** — realistic enough that Roslyn finds meaningful structure: deep inheritance, constructor-injected dependencies, interface contracts, and cross-layer calls.
+
+> [!NOTE]
+> **Project Type & Executability**: `LegacyProject` compiles as a .NET 8 **Class Library** (`.dll`). It is not directly runnable because it does not contain a program entry point. Instead, it serves as a static source code target. The analysis pipeline and graph queries are run by executing the **[WebDashboard](file:///d:/MyDevelopment/LegacyCodeMigration/WebDashboard/Program.cs)** project.
 
 ### Layer Overview
 
@@ -151,7 +154,7 @@ It covers every relationship type the graph can extract:
 
 ## Output Files
 
-Both files are written to `DemoConsole/bin/Debug/net8.0/output/` after every run.
+Both files are written to `WebDashboard/wwwroot/output/` after every run, making them directly servable and downloadable.
 
 ### `nodes.json` — What exists in the codebase
 
@@ -188,7 +191,7 @@ The two files are linked by `Id` — every `FromNodeId` and `ToNodeId` in `relat
 
 ```bash
 # From the solution root:
-dotnet run --project DemoConsole/DemoConsole.csproj
+dotnet run --project WebDashboard/WebDashboard.csproj
 ```
 
 No configuration needed. The tool locates `LegacyProject/` automatically.

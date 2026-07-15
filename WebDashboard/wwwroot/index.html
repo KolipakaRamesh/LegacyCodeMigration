@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="A real-time static analysis dashboard utilizing the Roslyn Compiler Platform to construct and query software knowledge graphs from C# code.">
+    <title>Software Knowledge Graph POC Dashboard</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&family=Space+Grotesk:wght@400;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="css/style.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/cytoscape/3.29.2/cytoscape.min.js"></script>
+</head>
+<body>
+    <div class="glow-bg"></div>
+    <div class="container">
+        <!-- Header -->
+        <header class="app-header">
+            <div class="logo-wrapper">
+                <div class="logo-icon"></div>
+                <h1>Software Knowledge Graph</h1>
+            </div>
+            <p class="subtitle">Extracting structural metadata & mapping code dependencies dynamically using Roslyn</p>
+        </header>
+
+        <!-- Main Dashboard Layout -->
+        <main class="dashboard-grid">
+            <!-- Left Panel: Controls & File Status -->
+            <section class="panel-left">
+                <!-- Action Card -->
+                <div class="glass-card action-card">
+                    <h2>Graph Generation Control</h2>
+                    <p class="card-desc">Parse the legacy C# project assemblies and map classes, repositories, services, method calls, and DI dependencies into graph files.</p>
+                    
+                    <button id="generate-btn" class="btn-primary">
+                        <span class="btn-text">Generate Knowledge Graph</span>
+                        <div class="spinner hidden" id="btn-spinner"></div>
+                    </button>
+                    
+                    <div id="generation-message" class="message hidden"></div>
+                </div>
+
+                <!-- File Status Card -->
+                <div class="glass-card status-card">
+                    <h2>Generated Artifacts</h2>
+                    <div class="file-list">
+                        <!-- nodes.json -->
+                        <div class="file-item" id="file-nodes">
+                            <div class="file-icon json-icon"></div>
+                            <div class="file-details">
+                                <div class="file-header">
+                                    <a href="/output/nodes.json" target="_blank" class="file-name" id="nodes-link">nodes.json</a>
+                                    <span class="badge badge-unresolved" id="nodes-badge">Not Generated</span>
+                                </div>
+                                <p class="file-path" id="nodes-path">Target: wwwroot/output/nodes.json</p>
+                                <div class="file-meta hidden" id="nodes-meta">
+                                    <span id="nodes-size">0 KB</span> &bull; <span id="nodes-time">Never</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- relationships.json -->
+                        <div class="file-item" id="file-relationships">
+                            <div class="file-icon json-icon"></div>
+                            <div class="file-details">
+                                <div class="file-header">
+                                    <a href="/output/relationships.json" target="_blank" class="file-name" id="rels-link">relationships.json</a>
+                                    <span class="badge badge-unresolved" id="rels-badge">Not Generated</span>
+                                </div>
+                                <p class="file-path" id="rels-path">Target: wwwroot/output/relationships.json</p>
+                                <div class="file-meta hidden" id="rels-meta">
+                                    <span id="rels-size">0 KB</span> &bull; <span id="rels-time">Never</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Right Panel: Statistics Dashboard -->
+            <section class="panel-right">
+                <div class="glass-card stats-card-container">
+                    <h2>Structural Graph Metrics</h2>
+                    <div class="stats-grid">
+                        <div class="stat-card highlight-card">
+                            <span class="stat-label">Total Graph Nodes</span>
+                            <span class="stat-value" id="stat-total-nodes">--</span>
+                        </div>
+                        <div class="stat-card highlight-card">
+                            <span class="stat-label">Total Directed Edges</span>
+                            <span class="stat-value" id="stat-total-relationships">--</span>
+                        </div>
+                        <div class="stat-card">
+                            <span class="stat-label">Namespaces</span>
+                            <span class="stat-value" id="stat-namespaces">--</span>
+                        </div>
+                        <div class="stat-card">
+                            <span class="stat-label">Classes</span>
+                            <span class="stat-value" id="stat-classes">--</span>
+                        </div>
+                        <div class="stat-card">
+                            <span class="stat-label">Interfaces</span>
+                            <span class="stat-value" id="stat-interfaces">--</span>
+                        </div>
+                        <div class="stat-card">
+                            <span class="stat-label">Methods</span>
+                            <span class="stat-value" id="stat-methods">--</span>
+                        </div>
+                        <div class="stat-card">
+                            <span class="stat-label">Properties</span>
+                            <span class="stat-value" id="stat-properties">--</span>
+                        </div>
+                        <div class="stat-card">
+                            <span class="stat-label">Fields</span>
+                            <span class="stat-value" id="stat-fields">--</span>
+                        </div>
+                        <div class="stat-card">
+                            <span class="stat-label">Constructors</span>
+                            <span class="stat-value" id="stat-constructors">--</span>
+                        </div>
+                        <div class="stat-card">
+                            <span class="stat-label">Enums</span>
+                            <span class="stat-value" id="stat-enums">--</span>
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </main>
+
+        <!-- Interactive Visualizer -->
+        <section class="glass-card visualizer-card">
+            <div class="visualizer-header">
+                <h2>Codebase Knowledge Graph Explorer</h2>
+                <button id="reset-layout-btn" class="btn-secondary">Reset Layout</button>
+            </div>
+            
+            <div class="visualizer-layout">
+                <!-- Sidebar Controls & Details -->
+                <div class="visualizer-sidebar">
+                    <!-- Search -->
+                    <div class="sidebar-section">
+                        <h3>Search Nodes</h3>
+                        <input type="text" id="node-search" placeholder="Search by name (e.g. Order)..." class="input-text">
+                    </div>
+                    
+                    <!-- Filters -->
+                    <div class="sidebar-section">
+                        <h3>Relationship Filters</h3>
+                        <div class="filter-options">
+                            <label class="checkbox-label">
+                                <input type="checkbox" id="filter-uses" checked>
+                                <span class="custom-checkbox"></span>
+                                USES (DI Dependencies)
+                            </label>
+                            <label class="checkbox-label">
+                                <input type="checkbox" id="filter-calls" checked>
+                                <span class="custom-checkbox"></span>
+                                CALLS (Method Invocations)
+                            </label>
+                            <label class="checkbox-label">
+                                <input type="checkbox" id="filter-inherits" checked>
+                                <span class="custom-checkbox"></span>
+                                INHERITS (Inheritance)
+                            </label>
+                            <label class="checkbox-label">
+                                <input type="checkbox" id="filter-implements" checked>
+                                <span class="custom-checkbox"></span>
+                                IMPLEMENTS (Interface Impl)
+                            </label>
+                        </div>
+                    </div>
+                    
+                    <!-- Node Details Panel -->
+                    <div class="sidebar-section details-section">
+                        <h3>Node Details</h3>
+                        <div id="details-empty" class="details-empty-msg">
+                            Select a node in the graph to view properties and connections.
+                        </div>
+                        <div id="details-content" class="details-content-box hidden">
+                            <div class="details-header-row">
+                                <span class="badge" id="detail-node-type">Class</span>
+                                <h4 id="detail-node-name">OrderService</h4>
+                            </div>
+                            <p class="detail-ns" id="detail-node-ns">LegacyProject.Services</p>
+                            
+                            <div class="detail-props" id="detail-node-props">
+                                <!-- Dynamic properties like IsAbstract, IsStatic -->
+                            </div>
+
+                            <div class="detail-relations">
+                                <h5>Dependencies (Outgoing)</h5>
+                                <ul id="detail-outgoing-list"></ul>
+                                
+                                <h5>Referenced By (Incoming)</h5>
+                                <ul id="detail-incoming-list"></ul>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Canvas Area -->
+                <div class="visualizer-canvas-container">
+                    <div id="cy"></div>
+                    <div id="cy-loading" class="cy-overlay hidden">
+                        <div class="spinner"></div>
+                        <p>Rendering knowledge graph...</p>
+                    </div>
+                    <div class="canvas-controls">
+                        <button id="zoom-in-btn" title="Zoom In">+</button>
+                        <button id="zoom-out-btn" title="Zoom Out">-</button>
+                        <button id="fit-btn" title="Fit Graph">⛶</button>
+                    </div>
+                </div>
+            </div>
+        </section>
+        
+        <!-- Footer -->
+        <footer class="app-footer">
+            <p>LegacyCodeMigration POC &bull; Powered by Microsoft.CodeAnalysis &bull; .NET 8.0</p>
+        </footer>
+    </div>
+    
+    <script src="js/visualiser.js"></script>
+    <script src="js/app.js"></script>
+</body>
+</html>
