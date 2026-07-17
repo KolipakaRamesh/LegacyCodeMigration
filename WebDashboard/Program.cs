@@ -10,6 +10,7 @@ using KnowledgeGraphEngine.Roslyn;
 using KnowledgeGraphEngine.Builder;
 using KnowledgeGraphEngine.Query;
 using KnowledgeGraphEngine.Storage;
+using WebDashboard;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -29,9 +30,20 @@ app.MapGet("/api/graph/files", (HttpContext context) =>
     var nodesPath = Path.Combine(outputDir, "nodes.json");
     var relsPath = Path.Combine(outputDir, "relationships.json");
 
+    var solutionDir = Directory.GetParent(app.Environment.ContentRootPath)?.FullName ?? app.Environment.ContentRootPath;
+    string apiDir = "";
+    bool apiMigrated = false;
+    try
+    {
+        var (legacyProjName, _) = WebApiScaffolder.FindLegacyProject(solutionDir);
+        apiDir = Path.Combine(solutionDir, legacyProjName + ".Api");
+        apiMigrated = Directory.Exists(apiDir);
+    }
+    catch { }
+
     if (!File.Exists(nodesPath) || !File.Exists(relsPath))
     {
-        return Results.Ok(new { generated = false });
+        return Results.Ok(new { generated = false, apiMigrated });
     }
 
     var nodesInfo = new FileInfo(nodesPath);
@@ -40,6 +52,7 @@ app.MapGet("/api/graph/files", (HttpContext context) =>
     return Results.Ok(new
     {
         generated = true,
+        apiMigrated,
         files = new[]
         {
             new
@@ -65,9 +78,10 @@ app.MapPost("/api/graph/generate", async (HttpContext context) =>
 {
     try
     {
-        // 1. Locate LegacyProject
+        // 1. Locate LegacyProject dynamically
         var contentRoot = app.Environment.ContentRootPath;
-        var legacyProjectPath = FindLegacyProjectPath(contentRoot);
+        var solutionDir = Directory.GetParent(contentRoot)?.FullName ?? contentRoot;
+        var (_, legacyProjectPath) = WebApiScaffolder.FindLegacyProject(solutionDir);
 
         // 2. Roslyn Analysis
         var analyzer = new RoslynProjectAnalyzer();
@@ -135,20 +149,102 @@ app.MapPost("/api/graph/generate", async (HttpContext context) =>
     }
 });
 
-app.Run();
+System.Diagnostics.Process? apiProcess = null;
 
-// ── Helper ──────────────────────────────────────────────────────────────────
-static string FindLegacyProjectPath(string startDir)
+app.MapPost("/api/graph/migrate", async (HttpContext context) =>
 {
-    var dir = new DirectoryInfo(startDir);
-    while (dir != null)
+    try
     {
-        var candidate = Path.Combine(dir.FullName, "LegacyProject");
-        if (Directory.Exists(candidate) &&
-            Directory.GetFiles(candidate, "*.csproj").Length > 0)
-            return candidate;
-        dir = dir.Parent;
+        var contentRoot = app.Environment.ContentRootPath;
+        var solutionDir = Directory.GetParent(contentRoot)?.FullName ?? contentRoot;
+        var webRoot = app.Environment.WebRootPath ?? Path.Combine(contentRoot, "wwwroot");
+        var outputDir = Path.Combine(webRoot, "output");
+
+        // Run scaffolding
+        var apiProjDir = await WebApiScaffolder.MigrateAsync(solutionDir, outputDir);
+
+        // Kill previously running api process if any
+        if (apiProcess != null && !apiProcess.HasExited)
+        {
+            try 
+            { 
+                apiProcess.Kill(true); 
+                await apiProcess.WaitForExitAsync();
+            } 
+            catch { }
+        }
+
+        // Start the newly generated Web API project
+        apiProcess = new System.Diagnostics.Process();
+        apiProcess.StartInfo.FileName = "dotnet";
+        apiProcess.StartInfo.Arguments = "run";
+        apiProcess.StartInfo.WorkingDirectory = apiProjDir;
+        apiProcess.StartInfo.UseShellExecute = false;
+        apiProcess.Start();
+
+        // Give it a second to spin up
+        await Task.Delay(1500);
+
+        return Results.Ok(new
+        {
+            success = true,
+            swaggerUrl = "http://localhost:5002/swagger/index.html"
+        });
     }
-    throw new DirectoryNotFoundException(
-        "Could not locate the LegacyProject directory. Ensure structural paths are valid.");
-}
+    catch (Exception ex)
+    {
+        return Results.Problem(
+            title: "Migration Generation Failed",
+            detail: ex.ToString(),
+            statusCode: StatusCodes.Status500InternalServerError
+        );
+    }
+});
+
+app.MapPost("/api/graph/delete-api", async (HttpContext context) =>
+{
+    try
+    {
+        // Kill previously running api process if any
+        if (apiProcess != null && !apiProcess.HasExited)
+        {
+            try 
+            { 
+                apiProcess.Kill(true); 
+                await apiProcess.WaitForExitAsync();
+            } 
+            catch { }
+        }
+
+        var contentRoot = app.Environment.ContentRootPath;
+        var solutionDir = Directory.GetParent(contentRoot)?.FullName ?? contentRoot;
+        var (legacyProjName, _) = WebApiScaffolder.FindLegacyProject(solutionDir);
+        var apiProjDir = Path.Combine(solutionDir, legacyProjName + ".Api");
+
+        if (Directory.Exists(apiProjDir))
+        {
+            await Task.Delay(500); // Wait for file locks to clear
+            try
+            {
+                Directory.Delete(apiProjDir, true);
+            }
+            catch
+            {
+                await Task.Delay(1000); // Retry once after 1s
+                Directory.Delete(apiProjDir, true);
+            }
+        }
+
+        return Results.Ok(new { success = true });
+    }
+    catch (Exception ex)
+    {
+        return Results.Problem(
+            title: "Failed to delete Web API project",
+            detail: ex.ToString(),
+            statusCode: StatusCodes.Status500InternalServerError
+        );
+    }
+});
+
+app.Run();

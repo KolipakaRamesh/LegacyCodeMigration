@@ -4,6 +4,15 @@ document.addEventListener('DOMContentLoaded', () => {
     const btnSpinner = document.getElementById('btn-spinner');
     const messageEl = document.getElementById('generation-message');
 
+    // Migration Elements
+    const migrateBtn = document.getElementById('migrate-btn');
+    const migrateSpinner = document.getElementById('migrate-spinner');
+    const migrationMessageEl = document.getElementById('migration-message');
+    const swaggerContainer = document.getElementById('swagger-container');
+    const swaggerLink = document.getElementById('swagger-link');
+    const deleteApiBtn = document.getElementById('delete-api-btn');
+    const deleteApiSpinner = document.getElementById('delete-api-spinner');
+
     // File info
     const nodesBadge = document.getElementById('nodes-badge');
     const nodesPath = document.getElementById('nodes-path');
@@ -41,15 +50,23 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Event Listeners
     generateBtn.addEventListener('click', generateGraph);
+    migrateBtn.addEventListener('click', migrateToWebApi);
+    deleteApiBtn.addEventListener('click', deleteGeneratedApi);
 
     // Functions
     async function checkExistingFiles() {
         try {
             const response = await fetch('/api/graph/files');
             const data = await response.json();
-            
+
             if (data.generated && data.files) {
                 updateFileUI(data.files);
+                migrateBtn.disabled = false;
+                if (data.apiMigrated) {
+                    deleteApiBtn.style.display = 'flex';
+                } else {
+                    deleteApiBtn.style.display = 'none';
+                }
                 if (data.statistics) {
                     updateStatsUI(data.statistics);
                 } else {
@@ -70,6 +87,12 @@ document.addEventListener('DOMContentLoaded', () => {
             if (data.success) {
                 updateStatsUI(data.statistics);
                 updateFileUI(data.files);
+                migrateBtn.disabled = false;
+                if (data.apiMigrated) {
+                    deleteApiBtn.style.display = 'flex';
+                } else {
+                    deleteApiBtn.style.display = 'none';
+                }
                 if (window.CodeGraphVisualizer) {
                     window.CodeGraphVisualizer.refresh();
                 }
@@ -84,7 +107,7 @@ document.addEventListener('DOMContentLoaded', () => {
         generateBtn.disabled = true;
         btnSpinner.classList.remove('hidden');
         messageEl.className = 'message hidden';
-        
+
         // Reset Stats visually to indicate reload
         Object.values(stats).forEach(el => el.classList.remove('glow-num'));
 
@@ -99,11 +122,12 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             const data = await response.json();
-            
+
             if (data.success) {
                 updateFileUI(data.files);
                 updateStatsUI(data.statistics);
-                
+                migrateBtn.disabled = false;
+
                 messageEl.textContent = 'Knowledge graph compiled and exported successfully!';
                 messageEl.className = 'message success';
 
@@ -118,6 +142,74 @@ document.addEventListener('DOMContentLoaded', () => {
         } finally {
             generateBtn.disabled = false;
             btnSpinner.classList.add('hidden');
+        }
+    }
+
+    async function migrateToWebApi() {
+        migrateBtn.disabled = true;
+        migrateSpinner.classList.remove('hidden');
+        migrationMessageEl.className = 'message hidden';
+        swaggerContainer.classList.add('hidden');
+
+        try {
+            const response = await fetch('/api/graph/migrate', {
+                method: 'POST'
+            });
+
+            if (!response.ok) {
+                const errData = await response.json();
+                throw new Error(errData.detail || 'Failed to scaffold and run Web API project.');
+            }
+
+            const data = await response.json();
+
+            if (data.success) {
+                migrationMessageEl.textContent = 'Web API scaffolded, built, and launched successfully!';
+                migrationMessageEl.className = 'message success';
+                swaggerLink.href = data.swaggerUrl;
+                swaggerContainer.classList.remove('hidden');
+                deleteApiBtn.style.display = 'flex';
+            }
+        } catch (error) {
+            console.error('Migration error:', error);
+            migrationMessageEl.textContent = `Error: ${error.message}`;
+            migrationMessageEl.className = 'message error';
+        } finally {
+            migrateBtn.disabled = false;
+            migrateSpinner.classList.add('hidden');
+        }
+    }
+
+    async function deleteGeneratedApi() {
+        deleteApiBtn.disabled = true;
+        deleteApiSpinner.classList.remove('hidden');
+        migrationMessageEl.className = 'message hidden';
+
+        try {
+            const response = await fetch('/api/graph/delete-api', {
+                method: 'POST'
+            });
+
+            if (!response.ok) {
+                const errData = await response.json();
+                throw new Error(errData.detail || 'Failed to delete Web API project.');
+            }
+
+            const data = await response.json();
+
+            if (data.success) {
+                migrationMessageEl.textContent = 'Web API project directory deleted successfully!';
+                migrationMessageEl.className = 'message success';
+                swaggerContainer.classList.add('hidden');
+                deleteApiBtn.style.display = 'none';
+            }
+        } catch (error) {
+            console.error('Delete error:', error);
+            migrationMessageEl.textContent = `Error: ${error.message}`;
+            migrationMessageEl.className = 'message error';
+        } finally {
+            deleteApiBtn.disabled = false;
+            deleteApiSpinner.classList.add('hidden');
         }
     }
 
@@ -191,12 +283,12 @@ document.addEventListener('DOMContentLoaded', () => {
             element.textContent = end;
             return;
         }
-        
+
         let current = start;
         const range = end - start;
         const duration = 800; // ms
         let startTimestamp = null;
-        
+
         const step = (timestamp) => {
             if (!startTimestamp) startTimestamp = timestamp;
             const progress = Math.min((timestamp - startTimestamp) / duration, 1);
@@ -208,7 +300,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 element.textContent = end;
             }
         };
-        
+
         window.requestAnimationFrame(step);
     }
 });

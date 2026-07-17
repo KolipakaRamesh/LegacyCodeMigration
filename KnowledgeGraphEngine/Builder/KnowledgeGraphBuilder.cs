@@ -213,6 +213,7 @@ public class KnowledgeGraphBuilder
         node.Metadata["IsOverride"]  = m.IsOverride.ToString();
         node.Metadata["IsVirtual"]   = m.IsVirtual.ToString();
         node.Metadata["IsAbstract"]  = m.IsAbstract.ToString();
+        node.Metadata["IsPublic"]    = m.IsPublic.ToString();
         node.Metadata["Parameters"]  = string.Join(", ",
             m.Parameters.Select(p => $"{p.Type} {p.Name}"));
     }

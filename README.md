@@ -198,6 +198,28 @@ No configuration needed. The tool locates `LegacyProject/` automatically.
 
 **Last run results:** 247 nodes · 404 relationships extracted from 30 source files in ~2 seconds.
 
+## Automated API Migration (`WebApiScaffolder.cs`)
+
+### Why We Use It
+When migrating legacy monolithic codebases to modern microservices or cloud-native Web APIs, developers typically spend hours writing boilerplate controllers, setting up Dependency Injection, creating DTO structures, and manually adapting legacy namespaces.
+
+The `WebApiScaffolder` proves that this transition can be completely automated by using the generated Software Knowledge Graph. It reads the extracted metadata (`nodes.json` and `relationships.json`) and the original source files, then programmatically builds a fully-functional, modern ASP.NET Core Web API wrapper (`LegacyProject.Api`) containing scaffolded endpoints for all legacy services.
+
+### What It Does
+When you click **"Migrate to Web API"** on the dashboard (or send a POST to `/api/graph/migrate`), the scaffolder automatically executes the following pipeline:
+
+1. **Dynamic Target Discovery**: Dynamically searches the solution folder for the source `.csproj` (e.g., `LegacyProject`), identifying the target name and directory without any hardcoded paths or names.
+2. **Boilerplate API Scaffolding**: Creates a new ASP.NET Core Web API directory structure, references needed NuGet packages (like Swashbuckle for Swagger), and generates a standalone `.csproj`.
+3. **Smart Source Migration**: Copies the legacy source files and dynamically rewrites `namespace` and `using` declarations to map them to the new `{ProjectName}.Api` namespace.
+4. **Service Pairing via Graph Relationships**: Finds all class and interface declarations ending in `Service`, maps implementations to interfaces using `IMPLEMENTS` relationships from the graph, and determines public methods using `HAS_METHOD`.
+5. **Controller Scaffolding**: 
+   - Creates a new `ApiController` (e.g., `CustomersController.cs`, `OrdersController.cs`) for each service.
+   - Automatically maps HTTP verbs (`HttpGet`, `HttpPost`, `HttpPut`, `HttpDelete`) based on method naming conventions (e.g., methods starting with `Get`/`Find`/`List` map to `HttpGet`).
+   - Automatically parses method parameters. If multiple parameters or value-tuples are found, it generates a custom Request DTO class (e.g., `CreateOrderRequestDto.cs`) and maps incoming JSON requests.
+6. **Generic Swagger Schema Filter**: Creates a generic swagger filter (`SwaggerExampleSchemaFilter.cs`) that injects realistic mockup data into Swagger UI for common property types (like email, price, names, ZIP) to facilitate manual testing.
+7. **Dynamic `Program.cs` Composition**: Scans graph data to dynamically discover context classes (`*Context`), repository classes (`*Repository`), and service implementations, registering them with the appropriate dependency injection lifecycle (`AddSingleton`/`AddScoped`) in the new Web API's entrypoint.
+8. **Auto-Run**: Boots up the new API on port `5002` immediately, making it ready to receive web requests.
+
 ---
 
 ## Extension Points
@@ -216,7 +238,7 @@ This POC is intentionally thin at the storage and output layer. The `IGraphStora
 
 We plan to use the generated `nodes.json` and `relationships.json` files to automate, track, and validate future service migrations (such as extracting `CustomerService` into a standalone Web API):
 
-- [ ] **Automated Endpoint Generation**: Develop a tool that parses method declarations in `nodes.json` to automatically scaffold REST controllers (e.g., `CustomerController.cs`) and request/response DTO classes.
+- [x] **Automated Endpoint Generation**: Develop a tool that parses method declarations in `nodes.json` to automatically scaffold REST controllers (e.g., `CustomerController.cs`) and request/response DTO classes. *(Implemented via [WebApiScaffolder.cs](file:///d:/MyDevelopment/LegacyCodeMigration/WebDashboard/WebApiScaffolder.cs))*
 - [ ] **Client Proxy Generation**: Generate client-side API clients (e.g., `CustomerServiceClient`) using the signatures and parameters parsed from the graph.
 - [ ] **Dependency & Impact Analysis**: Write queries to trace incoming dependencies (e.g., finding that `OrderService` uses `ICustomerService`) and outgoing requirements (e.g., `CustomerRepository`, `ValidationHelper`) to map out deployment bundles.
 - [ ] **Migration Progress Tracking**: Create a dashboard or pipeline script that checks the graph after each refactoring step, reporting on the percentage of dependencies successfully decoupled from legacy boundaries.

@@ -31,7 +31,7 @@ public class CustomerRepository : BaseRepository<Customer>
     {
         _context.EnsureConnected();
         IEnumerable<Customer> premiums = _store.Where(c => c.IsPremium && c.IsActive).ToList();
-        return Task.FromResult(premiiums);
+        return Task.FromResult(premiums);
     }
 
     /// <summary>Returns customers filtered by customer type.</summary>

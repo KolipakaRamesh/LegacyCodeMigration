@@ -11,6 +11,7 @@ public class MethodMetadata
     public bool IsOverride { get; set; }
     public bool IsVirtual { get; set; }
     public bool IsAbstract { get; set; }
+    public bool IsPublic { get; set; }
 
     /// <summary>
     /// Method invocations found in the method body.

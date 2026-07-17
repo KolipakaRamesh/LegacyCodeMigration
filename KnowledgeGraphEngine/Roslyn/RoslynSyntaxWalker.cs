@@ -164,6 +164,7 @@ public class RoslynSyntaxWalker : CSharpSyntaxWalker
             IsOverride  = node.Modifiers.Any(SyntaxKind.OverrideKeyword),
             IsVirtual   = node.Modifiers.Any(SyntaxKind.VirtualKeyword),
             IsAbstract  = node.Modifiers.Any(SyntaxKind.AbstractKeyword),
+            IsPublic    = node.Modifiers.Any(SyntaxKind.PublicKeyword) || _currentInterface != null,
             Parameters  = ExtractParameters(node.ParameterList)
         };
 
@@ -263,7 +264,7 @@ public class RoslynSyntaxWalker : CSharpSyntaxWalker
         return list.Parameters.Select(p => new ParameterInfo
         {
             Name = p.Identifier.Text,
-            Type = StripGenerics(p.Type?.ToString() ?? "object")
+            Type = p.Type?.ToString() ?? "object"
         }).ToList();
     }
 

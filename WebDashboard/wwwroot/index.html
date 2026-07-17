@@ -1,16 +1,21 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="description" content="A real-time static analysis dashboard utilizing the Roslyn Compiler Platform to construct and query software knowledge graphs from C# code.">
+    <meta name="description"
+        content="A real-time static analysis dashboard utilizing the Roslyn Compiler Platform to construct and query software knowledge graphs from C# code.">
     <title>Software Knowledge Graph POC Dashboard</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&family=Space+Grotesk:wght@400;600;700&display=swap" rel="stylesheet">
+    <link
+        href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&family=Space+Grotesk:wght@400;600;700&display=swap"
+        rel="stylesheet">
     <link rel="stylesheet" href="css/style.css">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/cytoscape/3.29.2/cytoscape.min.js"></script>
 </head>
+
 <body>
     <div class="glow-bg"></div>
     <div class="container">
@@ -30,14 +35,36 @@
                 <!-- Action Card -->
                 <div class="glass-card action-card">
                     <h2>Graph Generation Control</h2>
-                    <p class="card-desc">Parse the legacy C# project assemblies and map classes, repositories, services, method calls, and DI dependencies into graph files.</p>
-                    
+                    <p class="card-desc">Parse the legacy C# project assemblies and map classes, repositories, services,
+                        method calls, and DI dependencies into graph files.</p>
+
                     <button id="generate-btn" class="btn-primary">
                         <span class="btn-text">Generate Knowledge Graph</span>
                         <div class="spinner hidden" id="btn-spinner"></div>
                     </button>
-                    
+
                     <div id="generation-message" class="message hidden"></div>
+                </div>
+
+                <!-- Migration Card -->
+                <div class="glass-card action-card migration-card" style="margin-top: 20px;">
+                    <h2>Web API Migration</h2>
+                    <p class="card-desc">Automatically scaffold a new ASP.NET Core Web API project based on the generated Knowledge Graph context, compile it, and launch it with Swagger UI.</p>
+                    
+                    <button id="migrate-btn" class="btn-primary" disabled>
+                        <span class="btn-text">Migrate to Web API</span>
+                        <div class="spinner hidden" id="migrate-spinner"></div>
+                    </button>
+
+                    <button id="delete-api-btn" class="btn-secondary" style="margin-top: 10px; display: none; background: rgba(244, 63, 94, 0.15); border-color: rgba(244, 63, 94, 0.3); color: #f43f5e; width: 100%; justify-content: center; align-items: center; gap: 8px;">
+                        <span class="btn-text">Delete Generated API</span>
+                        <div class="spinner hidden" id="delete-api-spinner"></div>
+                    </button>
+                    
+                    <div id="migration-message" class="message hidden"></div>
+                    <div id="swagger-container" class="hidden" style="margin-top: 15px;">
+                        <a id="swagger-link" href="#" target="_blank" class="btn-secondary" style="display: block; text-align: center; text-decoration: none; padding: 12px; border-radius: 8px; font-weight: 600; font-family: 'Space Grotesk', sans-serif;">Open Swagger UI 🚀</a>
+                    </div>
                 </div>
 
                 <!-- File Status Card -->
@@ -49,7 +76,8 @@
                             <div class="file-icon json-icon"></div>
                             <div class="file-details">
                                 <div class="file-header">
-                                    <a href="/output/nodes.json" target="_blank" class="file-name" id="nodes-link">nodes.json</a>
+                                    <a href="/output/nodes.json" target="_blank" class="file-name"
+                                        id="nodes-link">nodes.json</a>
                                     <span class="badge badge-unresolved" id="nodes-badge">Not Generated</span>
                                 </div>
                                 <p class="file-path" id="nodes-path">Target: wwwroot/output/nodes.json</p>
@@ -64,7 +92,8 @@
                             <div class="file-icon json-icon"></div>
                             <div class="file-details">
                                 <div class="file-header">
-                                    <a href="/output/relationships.json" target="_blank" class="file-name" id="rels-link">relationships.json</a>
+                                    <a href="/output/relationships.json" target="_blank" class="file-name"
+                                        id="rels-link">relationships.json</a>
                                     <span class="badge badge-unresolved" id="rels-badge">Not Generated</span>
                                 </div>
                                 <p class="file-path" id="rels-path">Target: wwwroot/output/relationships.json</p>
@@ -133,16 +162,17 @@
                 <h2>Codebase Knowledge Graph Explorer</h2>
                 <button id="reset-layout-btn" class="btn-secondary">Reset Layout</button>
             </div>
-            
+
             <div class="visualizer-layout">
                 <!-- Sidebar Controls & Details -->
                 <div class="visualizer-sidebar">
                     <!-- Search -->
                     <div class="sidebar-section">
                         <h3>Search Nodes</h3>
-                        <input type="text" id="node-search" placeholder="Search by name (e.g. Order)..." class="input-text">
+                        <input type="text" id="node-search" placeholder="Search by name (e.g. Order)..."
+                            class="input-text">
                     </div>
-                    
+
                     <!-- Filters -->
                     <div class="sidebar-section">
                         <h3>Relationship Filters</h3>
@@ -169,7 +199,7 @@
                             </label>
                         </div>
                     </div>
-                    
+
                     <!-- Node Details Panel -->
                     <div class="sidebar-section details-section">
                         <h3>Node Details</h3>
@@ -182,7 +212,7 @@
                                 <h4 id="detail-node-name">OrderService</h4>
                             </div>
                             <p class="detail-ns" id="detail-node-ns">LegacyProject.Services</p>
-                            
+
                             <div class="detail-props" id="detail-node-props">
                                 <!-- Dynamic properties like IsAbstract, IsStatic -->
                             </div>
@@ -190,14 +220,14 @@
                             <div class="detail-relations">
                                 <h5>Dependencies (Outgoing)</h5>
                                 <ul id="detail-outgoing-list"></ul>
-                                
+
                                 <h5>Referenced By (Incoming)</h5>
                                 <ul id="detail-incoming-list"></ul>
                             </div>
                         </div>
                     </div>
                 </div>
-                
+
                 <!-- Canvas Area -->
                 <div class="visualizer-canvas-container">
                     <div id="cy"></div>
@@ -213,14 +243,15 @@
                 </div>
             </div>
         </section>
-        
+
         <!-- Footer -->
         <footer class="app-footer">
             <p>LegacyCodeMigration POC &bull; Powered by Microsoft.CodeAnalysis &bull; .NET 8.0</p>
         </footer>
     </div>
-    
+
     <script src="js/visualiser.js"></script>
     <script src="js/app.js"></script>
 </body>
+
 </html>
