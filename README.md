@@ -4,21 +4,10 @@
 
 ---
 
-## The Problem It Solves
+## Key Features
 
-Legacy codebases are hard to understand. They accumulate years of undocumented dependencies, hidden coupling, inheritance chains, and service interactions that no single developer fully knows. Before you can migrate, refactor, or modernise a legacy system, you need to answer questions like:
-
-- What does `OrderService` actually depend on?
-- Which classes implement `IRepository`?
-- What happens if I change `Customer`?
-- Which services call `DatabaseContext` directly?
-- What is the full inheritance chain of `BaseRepository`?
-
-This POC answers all of those questions automatically — by reading the source code itself.
-
----
-
-## What It Does
+### 1. Roslyn-Based Static Analysis & Graph Construction
+The POC parses the target legacy C# codebase assemblies and maps classes, interfaces, enums, methods, properties, fields, constructors, and relationships directly from the source code.
 
 ```
 Legacy C# Project  (.cs source files)
@@ -48,26 +37,31 @@ JSON Export
         │   relationships.json  ← every directed edge (INHERITS, USES, CALLS, etc.)
         ▼
 Graph Query Engine  (pure in-memory, no database)
-        │   Find all classes · Find implementations · Trace dependencies ·
-        │   Get dependency chains · Find callers · List methods/properties/fields
-        ▼
-Console Output  (12 sample queries answered)
+            Find all classes · Find implementations · Trace dependencies ·
+            Get dependency chains · Find callers · List methods/properties/fields
 ```
 
----
+### 2. Automated API Migration (`WebApiScaffolder.cs`)
+When migrating legacy monolithic codebases to modern microservices or cloud-native Web APIs, developers typically spend hours writing boilerplate controllers, setting up Dependency Injection, creating DTO structures, and manually adapting legacy namespaces.
 
-## Where It Is Useful
+The `WebApiScaffolder` proves that this transition can be completely automated by using the generated Software Knowledge Graph. It reads the extracted metadata (`nodes.json` and `relationships.json`) and the original source files, then programmatically builds a fully-functional, modern ASP.NET Core Web API wrapper (`LegacyProject.Api`) containing scaffolded endpoints for all legacy services.
 
-| Scenario | How This POC Helps |
-|---|---|
-| **Legacy migration** | Understand the full dependency graph before moving any code — know what breaks if you change a class |
-| **Codebase onboarding** | New team members can query the graph instead of reading thousands of lines of code |
-| **Architecture validation** | Detect architectural violations — e.g. a `Service` layer class directly calling another `Service` |
-| **Refactoring planning** | Find all callers of a method, all implementors of an interface, all classes that `USES` a specific repository |
-| **CI/CD enforcement** | Run the graph builder in a pipeline and assert dependency rules (e.g. "no circular USES between services") |
-| **Documentation generation** | `nodes.json` + `relationships.json` can feed any visualisation tool — Gephi, D3.js, Cytoscape, Mermaid |
-| **Future AI/agent tooling** | The graph files provide structured, self-describing context about the codebase without requiring source file access |
-| **Neo4j / graph database import** | The Id-based JSON format maps directly to a property graph — importable with zero transformation |
+When you click **"Migrate to Web API"** on the dashboard (or send a POST to `/api/graph/migrate`), the scaffolder automatically executes the following pipeline:
+
+1. **Dynamic Target Discovery**: Dynamically searches the solution folder for the target legacy project, identifying its name and directory without any hardcoded paths.
+2. **Boilerplate API Scaffolding**: Creates a new ASP.NET Core Web API directory structure, references needed NuGet packages (like Swashbuckle for Swagger), and generates a standalone `.csproj`.
+3. **Smart Source Migration**: Copies the legacy source files and dynamically rewrites `namespace` and `using` declarations to map them to the new `{ProjectName}.Api` namespace.
+4. **Service Pairing via Graph Relationships**: Finds all class and interface declarations ending in `Service`, maps implementations to interfaces using `IMPLEMENTS` relationships from the graph, and determines public methods using `HAS_METHOD`.
+5. **Controller Scaffolding**: 
+   - Creates a new `ApiController` (e.g., `CustomersController.cs`, `OrdersController.cs`) for each service.
+   - Automatically maps HTTP verbs (`HttpGet`, `HttpPost`, `HttpPut`, `HttpDelete`) based on method naming conventions (e.g., methods starting with `Get`/`Find`/`List` map to `HttpGet`).
+   - Automatically parses method parameters. If multiple parameters or value-tuples are found, it generates a custom Request DTO class (e.g., `CreateOrderRequestDto.cs`) and maps incoming JSON requests.
+6. **Generic Swagger Schema Filter**: Creates a generic swagger filter (`SwaggerExampleSchemaFilter.cs`) that injects realistic mockup data into Swagger UI for common property types (like email, price, names, ZIP) to facilitate manual testing.
+7. **Dynamic `Program.cs` Composition**: Scans graph data to dynamically discover context classes (`*Context`), repository classes (`*Repository`), and service implementations, registering them with the appropriate dependency injection lifecycle (`AddSingleton`/`AddScoped`) in the new Web API's entrypoint.
+8. **Auto-Run**: Boots up the new API on port `5002` immediately, making it ready to receive web requests.
+
+### 3. Interactive Web Dashboard
+A modern, responsive web dashboard serves as the user interface to control graph generation, trigger API migrations, view codebase statistics, and explore dependencies interactively.
 
 ---
 
@@ -117,6 +111,35 @@ Console Output  (12 sample queries answered)
 
 ---
 
+## The Problem It Solves
+
+Legacy codebases are hard to understand. They accumulate years of undocumented dependencies, hidden coupling, inheritance chains, and service interactions that no single developer fully knows. Before you can migrate, refactor, or modernise a legacy system, you need to answer questions like:
+
+- What does `OrderService` actually depend on?
+- Which classes implement `IRepository`?
+- What happens if I change `Customer`?
+- Which services call `DatabaseContext` directly?
+- What is the full inheritance chain of `BaseRepository`?
+
+This POC answers all of those questions automatically by reading the source code itself and structuring it into a navigable dependency graph.
+
+---
+
+## Where It Is Useful
+
+| Scenario | How This POC Helps |
+|---|---|
+| **Legacy migration** | Understand the full dependency graph before moving any code — know what breaks if you change a class |
+| **Codebase onboarding** | New team members can query the graph instead of reading thousands of lines of code |
+| **Architecture validation** | Detect architectural violations — e.g. a `Service` layer class directly calling another `Service` |
+| **Refactoring planning** | Find all callers of a method, all implementors of an interface, all classes that `USES` a specific repository |
+| **CI/CD enforcement** | Run the graph builder in a pipeline and assert dependency rules (e.g. "no circular USES between services") |
+| **Documentation generation** | `nodes.json` + `relationships.json` can feed any visualisation tool — Gephi, D3.js, Cytoscape, Mermaid |
+| **Future AI/agent tooling** | The graph files provide structured, self-describing context about the codebase without requiring source file access |
+| **Neo4j / graph database import** | The Id-based JSON format maps directly to a property graph — importable with zero transformation |
+
+---
+
 ## The Legacy Domain (Analysis Target)
 
 The `LegacyProject` is a simulated enterprise **Order Management System** — realistic enough that Roslyn finds meaningful structure: deep inheritance, constructor-injected dependencies, interface contracts, and cross-layer calls.
@@ -152,7 +175,7 @@ It covers every relationship type the graph can extract:
 
 ---
 
-## Output Files
+## Output Data Model
 
 Both files are written to `WebDashboard/wwwroot/output/` after every run, making them directly servable and downloadable.
 
@@ -198,28 +221,6 @@ No configuration needed. The tool locates `LegacyProject/` automatically.
 
 **Last run results:** 247 nodes · 404 relationships extracted from 30 source files in ~2 seconds.
 
-## Automated API Migration (`WebApiScaffolder.cs`)
-
-### Why We Use It
-When migrating legacy monolithic codebases to modern microservices or cloud-native Web APIs, developers typically spend hours writing boilerplate controllers, setting up Dependency Injection, creating DTO structures, and manually adapting legacy namespaces.
-
-The `WebApiScaffolder` proves that this transition can be completely automated by using the generated Software Knowledge Graph. It reads the extracted metadata (`nodes.json` and `relationships.json`) and the original source files, then programmatically builds a fully-functional, modern ASP.NET Core Web API wrapper (`LegacyProject.Api`) containing scaffolded endpoints for all legacy services.
-
-### What It Does
-When you click **"Migrate to Web API"** on the dashboard (or send a POST to `/api/graph/migrate`), the scaffolder automatically executes the following pipeline:
-
-1. **Dynamic Target Discovery**: Dynamically searches the solution folder for the source `.csproj` (e.g., `LegacyProject`), identifying the target name and directory without any hardcoded paths or names.
-2. **Boilerplate API Scaffolding**: Creates a new ASP.NET Core Web API directory structure, references needed NuGet packages (like Swashbuckle for Swagger), and generates a standalone `.csproj`.
-3. **Smart Source Migration**: Copies the legacy source files and dynamically rewrites `namespace` and `using` declarations to map them to the new `{ProjectName}.Api` namespace.
-4. **Service Pairing via Graph Relationships**: Finds all class and interface declarations ending in `Service`, maps implementations to interfaces using `IMPLEMENTS` relationships from the graph, and determines public methods using `HAS_METHOD`.
-5. **Controller Scaffolding**: 
-   - Creates a new `ApiController` (e.g., `CustomersController.cs`, `OrdersController.cs`) for each service.
-   - Automatically maps HTTP verbs (`HttpGet`, `HttpPost`, `HttpPut`, `HttpDelete`) based on method naming conventions (e.g., methods starting with `Get`/`Find`/`List` map to `HttpGet`).
-   - Automatically parses method parameters. If multiple parameters or value-tuples are found, it generates a custom Request DTO class (e.g., `CreateOrderRequestDto.cs`) and maps incoming JSON requests.
-6. **Generic Swagger Schema Filter**: Creates a generic swagger filter (`SwaggerExampleSchemaFilter.cs`) that injects realistic mockup data into Swagger UI for common property types (like email, price, names, ZIP) to facilitate manual testing.
-7. **Dynamic `Program.cs` Composition**: Scans graph data to dynamically discover context classes (`*Context`), repository classes (`*Repository`), and service implementations, registering them with the appropriate dependency injection lifecycle (`AddSingleton`/`AddScoped`) in the new Web API's entrypoint.
-8. **Auto-Run**: Boots up the new API on port `5002` immediately, making it ready to receive web requests.
-
 ---
 
 ## Extension Points
@@ -248,9 +249,9 @@ We plan to use the generated `nodes.json` and `relationships.json` files to auto
 
 ## Tech Stack
 
-| | |
+| Component | Technology |
 |---|---|
-| Runtime | .NET 8 |
+| Runtime | .NET 8.0 |
 | Roslyn | `Microsoft.CodeAnalysis.CSharp` 4.9.2 |
 | Serialization | `System.Text.Json` (built-in) |
 | External services | **None** |
