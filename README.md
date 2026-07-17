@@ -239,10 +239,13 @@ This POC is intentionally thin at the storage and output layer. The `IGraphStora
 
 We plan to use the generated `nodes.json` and `relationships.json` files to automate, track, and validate future service migrations (such as extracting `CustomerService` into a standalone Web API):
 
-- [x] **Automated Endpoint Generation**: Develop a tool that parses method declarations in `nodes.json` to automatically scaffold REST controllers (e.g., `CustomerController.cs`) and request/response DTO classes. *(Implemented via [WebApiScaffolder.cs](file:///d:/MyDevelopment/LegacyCodeMigration/WebDashboard/WebApiScaffolder.cs))*
+- [x] **Automated Endpoint Generation**: Develop a tool that parses method declarations in `nodes.json` to automatically scaffold REST controllers and request/response DTO classes. *(Implemented via [WebApiScaffolder.cs](file:///d:/MyDevelopment/LegacyCodeMigration/WebDashboard/WebApiScaffolder.cs))*
+- [/] **Dependency & Impact Analysis**: Trace incoming/outgoing dependencies to assess change impact before refactoring. *(Partially implemented via the interactive Web Dashboard sidebar)*
 - [ ] **Client Proxy Generation**: Generate client-side API clients (e.g., `CustomerServiceClient`) using the signatures and parameters parsed from the graph.
-- [ ] **Dependency & Impact Analysis**: Write queries to trace incoming dependencies (e.g., finding that `OrderService` uses `ICustomerService`) and outgoing requirements (e.g., `CustomerRepository`, `ValidationHelper`) to map out deployment bundles.
-- [ ] **Migration Progress Tracking**: Create a dashboard or pipeline script that checks the graph after each refactoring step, reporting on the percentage of dependencies successfully decoupled from legacy boundaries.
+- [ ] **Orphaned / Dead Code Clean-up**: Scan for orphaned nodes (classes or methods with zero incoming connections) to clean up legacy technical debt before migration.
+- [ ] **Modular Clustering for Microservices**: Use graph clustering algorithms (e.g., community detection) on the relationship data to suggest clean boundaries for splitting the monolith.
+- [ ] **Shared Utility Package Isolation**: Identify high-use static utility classes (e.g., helpers) to package them into reusable NuGet libraries rather than duplicating them.
+- [ ] **Migration Progress Tracking**: Create a pipeline script that checks the graph after each refactoring step, reporting on the percentage of dependencies successfully decoupled from legacy boundaries.
 - [ ] **CI Architecture Guardrails**: Implement automated gateway tests in CI to scan `relationships.json` and block PRs that introduce circular dependencies or violate layer boundaries (e.g., services calling other services directly).
 
 ---
